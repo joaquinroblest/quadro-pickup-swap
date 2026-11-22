@@ -1,0 +1,57 @@
+name: Armar plugin (macOS)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probar los filtros (sin JUCE)
+        run: |
+          clang++ -std=c++20 -O2 -Wall -Wextra -o pickup_test tools/pickup_test.cpp
+          ./pickup_test
+
+      - name: Configurar
+        run: >
+          cmake -B build -G Xcode
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+
+      - name: Compilar
+        run: cmake --build build --config Release --parallel 4 -- -quiet
+
+      - name: Firmar (ad-hoc)
+        run: |
+          ART=build/QuadroPickupSwap_artefacts/Release
+          codesign --force --deep --sign - "$ART/AU/Quadro Pickup Swap.component"
+          codesign --force --deep --sign - "$ART/VST3/Quadro Pickup Swap.vst3"
+          codesign --verify --verbose "$ART/AU/Quadro Pickup Swap.component"
+
+      - name: Validar Audio Unit (auval)
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          rm -rf ~/Library/Audio/Plug-Ins/Components/"Quadro Pickup Swap.component"
+          cp -R "build/QuadroPickupSwap_artefacts/Release/AU/Quadro Pickup Swap.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          sleep 2
+          auval -a | grep -i quadro || true
+          auval -strict -v aufx Qpsw Qdro
+
+      - name: Empaquetar
+        run: |
+          ART=build/QuadroPickupSwap_artefacts/Release
+          mkdir -p dist
+          ditto -c -k --keepParent "$ART/AU/Quadro Pickup Swap.component" "dist/Quadro-Pickup-Swap-AU.zip"
+          ditto -c -k --keepParent "$ART/VST3/Quadro Pickup Swap.vst3" "dist/Quadro-Pickup-Swap-VST3.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quadro-pickup-swap-macos
+          path: dist/*.zip
+          retention-days: 30
