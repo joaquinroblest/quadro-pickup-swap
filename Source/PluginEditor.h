@@ -10,48 +10,68 @@
 
 namespace quadro
 {
-// Boton redondo de linea fina con una flecha (para pasar de modelo).
-class ArrowButton : public juce::Button
+// Perilla selectora de 10 posiciones (01 a 10), como el selector de un equipo.
+// Se gira arrastrando, con la rueda del mouse, con las flechas del teclado,
+// o haciendo clic en un numero o en el punto del arco donde se quiere dejar.
+class SelectorDial : public juce::Component
 {
 public:
-    ArrowButton (const juce::String& name, bool pointsRight);
-    void paintButton (juce::Graphics&, bool highlighted, bool down) override;
+    explicit SelectorDial (std::function<void (int)> onPick);
+
+    void setIndex (int i) { index = i; repaint(); }
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    bool keyPressed (const juce::KeyPress&) override;
+
+    static juce::Point<float> pointFor (int i, juce::Point<float> centre, float radius);
 
 private:
-    bool right;
+    int indexAt (juce::Point<float>) const;
+    void pick (int i);
+
+    std::function<void (int)> onPick;
+    int index = 0, dragStartIndex = 0;
+    float wheelAccum = 0.0f;
+    bool dragged = false;
 };
 
-// Tarjeta de capsula: foto, etiqueta (DESDE / HACIA), nombre del modelo y flechas.
-class PickupCard : public juce::Component
+// Tarjeta "Desde" o "Hacia": etiqueta, contador, selector, foto y nombre del modelo.
+class SelectorCard : public juce::Component
 {
 public:
-    PickupCard (juce::RangedAudioParameter& param, const juce::String& label, bool blueTone);
-    ~PickupCard() override = default;
+    SelectorCard (juce::RangedAudioParameter& param, const juce::String& label, bool orangeTone);
 
     void paint (juce::Graphics&) override;
     void resized() override;
     void mouseUp (const juce::MouseEvent&) override;
-    void mouseEnter (const juce::MouseEvent&) override { repaint(); }
+    void mouseMove (const juce::MouseEvent& e) override
+    {
+        setMouseCursor (clickArea().contains (e.getPosition()) ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
+        repaint();
+    }
     void mouseExit (const juce::MouseEvent&) override { repaint(); }
 
 private:
     void setIndex (int newIndex);
     void showMenu();
-    juce::Rectangle<int> nameArea() const;
+    juce::Rectangle<int> photoArea() const;
+    juce::Rectangle<int> textArea() const;
+    juce::Rectangle<int> clickArea() const { return photoArea().getUnion (textArea()); }
 
-    juce::RangedAudioParameter& parameter;
     juce::ParameterAttachment attachment;
     juce::String label;
-    bool blue;
     int index = 0;
 
-    ArrowButton prev { "Anterior", false }, next { "Siguiente", true };
+    SelectorDial dial;
     std::array<juce::Image, 5> photos;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PickupCard)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SelectorCard)
 };
 
-// Grafico de lo que hace la conversion: cuanto sube o baja cada frecuencia.
+// Pantalla con lo que hace la conversion: cuanto sube o baja cada frecuencia.
 class CurveView : public juce::Component, private juce::Timer
 {
 public:
@@ -99,11 +119,11 @@ private:
     quadro::LookAndFeel lnf;
     std::unique_ptr<juce::Drawable> isotipo;
 
-    quadro::PickupCard fromCard, toCard;
+    quadro::SelectorCard fromCard, toCard;
     quadro::CurveView curve;
     quadro::Knob mixKnob, brightnessKnob, outputKnob;
 
-    juce::Rectangle<int> headerArea, cardsArea, bottomArea, curvePanel, knobsPanel, footerArea;
+    juce::Rectangle<int> bandArea, curvePanel, knobsPanel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PickupSwapEditor)
 };

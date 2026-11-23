@@ -69,170 +69,218 @@ juce::Image toBrandTone (const juce::Image& src)
     return out;
 }
 
-void drawPanel (juce::Graphics& g, juce::Rectangle<int> r)
-{
-    g.setColour (colour::linea);
-    g.drawRect (r, 1);
-}
-
 void drawMonoLabel (juce::Graphics& g, const juce::String& text, juce::Rectangle<int> r,
-                    juce::Colour c = colour::humo, juce::Justification j = juce::Justification::centredLeft, bool upper = true)
+                    juce::Colour c = colour::humo, juce::Justification j = juce::Justification::centredLeft,
+                    bool upper = true, bool medium = false, float size = 11.0f)
 {
     g.setColour (c);
-    g.setFont (Fonts::monoFont (11.0f));
+    g.setFont (Fonts::monoFont (size, medium));
     g.drawText (upper ? text.toUpperCase() : text, r, j, false);
+}
+
+// Grupo al que pertenece cada modelo (mismo orden que pickup::models()).
+const char* groupFor (int i)
+{
+    return i <= 3 ? "SINGLE COIL" : (i <= 6 ? "HUMBUCKER" : "HUMBUCKER EN SPLIT");
+}
+
+// Texto con saltos de linea a un ancho dado; devuelve la altura que ocupo.
+float drawWrapped (juce::Graphics& g, const juce::String& text, const juce::Font& font, juce::Colour c,
+                   juce::Rectangle<float> area)
+{
+    juce::AttributedString s;
+    s.setWordWrap (juce::AttributedString::byWord);
+    s.setJustification (juce::Justification::topLeft);
+    s.append (text, font, c);
+    juce::TextLayout layout;
+    layout.createLayout (s, area.getWidth());
+    layout.draw (g, area.withHeight (layout.getHeight()));
+    return layout.getHeight();
 }
 } // namespace
 
 //==============================================================================
-ArrowButton::ArrowButton (const juce::String& name, bool pointsRight) : juce::Button (name), right (pointsRight)
+SelectorDial::SelectorDial (std::function<void (int)> cb) : onPick (std::move (cb))
 {
+    setWantsKeyboardFocus (true);
     setMouseCursor (juce::MouseCursor::PointingHandCursor);
-    setTooltip (name);
+    setTitle ("Selector");
 }
 
-void ArrowButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+juce::Point<float> SelectorDial::pointFor (int i, juce::Point<float> c, float radius)
 {
-    const auto r = getLocalBounds().toFloat().reduced (1.0f);
-    if (highlighted || down)
+    // 01 abajo a la izquierda, sube por la izquierda, pasa por arriba y baja hasta 10 abajo a la derecha.
+    const float a = juce::degreesToRadians (225.0f - 30.0f * (float) i);
+    return { c.x + radius * std::cos (a), c.y - radius * std::sin (a) };
+}
+
+void SelectorDial::paint (juce::Graphics& g)
+{
+    const auto c = getLocalBounds().toFloat().getCentre();
+    const float r = 66.0f;
+
+    // Numeros alrededor
+    g.setFont (Fonts::monoFont (11.0f, true));
+    for (int i = 0; i < pickup::numModels(); ++i)
     {
-        g.setGradientFill (brandGradient (r));
-        g.fillEllipse (r);
-    }
-    else
-    {
-        g.setColour (colour::papel.withAlpha (0.28f));
-        g.drawEllipse (r, 1.0f);
+        const auto p = pointFor (i, c, r + 19.0f);
+        g.setColour (i == index ? colour::naranjo : colour::humo);
+        g.drawText (juce::String (i + 1).paddedLeft ('0', 2), juce::Rectangle<float> (28.0f, 16.0f).withCentre (p),
+                    juce::Justification::centred, false);
     }
 
-    const auto c = r.getCentre();
-    const float s = r.getWidth() * 0.14f;
-    juce::Path chevron;
-    if (right)
+    // Cuerpo de la perilla: aro de linea fina y un aro interior mas tenue
+    g.setColour (juce::Colour (0xff1c1a19));
+    g.fillEllipse (juce::Rectangle<float> (r * 2.0f, r * 2.0f).withCentre (c));
+    g.setColour (colour::papel.withAlpha (hasKeyboardFocus (false) ? 0.5f : 0.28f));
+    g.drawEllipse (juce::Rectangle<float> (r * 2.0f, r * 2.0f).withCentre (c), 1.0f);
+    g.setColour (colour::papel.withAlpha (0.10f));
+    g.drawEllipse (juce::Rectangle<float> ((r - 24.0f) * 2.0f, (r - 24.0f) * 2.0f).withCentre (c), 1.0f);
+
+    // Indicador naranjo
+    const auto tip = pointFor (index, c, r - 14.0f);
+    g.setColour (colour::naranjo);
+    g.drawLine ({ c, tip }, 3.0f);
+    g.fillEllipse (juce::Rectangle<float> (10.0f, 10.0f).withCentre (tip));
+}
+
+int SelectorDial::indexAt (juce::Point<float> p) const
+{
+    const auto c = getLocalBounds().toFloat().getCentre();
+    if (p.getDistanceFrom (c) < 12.0f)
+        return -1;
+
+    // Angulo desde el centro, medido como en el dibujo (0 grados a la derecha, sube contra reloj)
+    float deg = juce::radiansToDegrees (std::atan2 (c.y - p.y, p.x - c.x));
+    float t = 225.0f - deg; // 0 en el 01, 270 en el 10
+    while (t < -45.0f) t += 360.0f;
+    while (t >= 315.0f) t -= 360.0f;
+    if (t < -18.0f || t > 288.0f)
+        return -1; // zona muerta abajo, entre el 01 y el 10
+    return juce::jlimit (0, pickup::numModels() - 1, juce::roundToInt (t / 30.0f));
+}
+
+void SelectorDial::pick (int i)
+{
+    i = juce::jlimit (0, pickup::numModels() - 1, i);
+    if (i != index && onPick)
+        onPick (i);
+}
+
+void SelectorDial::mouseDown (const juce::MouseEvent&)
+{
+    dragStartIndex = index;
+    dragged = false;
+}
+
+void SelectorDial::mouseDrag (const juce::MouseEvent& e)
+{
+    const int dist = e.getDistanceFromDragStartX() - e.getDistanceFromDragStartY();
+    if (! dragged && std::abs (dist) < 4)
+        return;
+    dragged = true;
+    pick (dragStartIndex + dist / 22);
+}
+
+void SelectorDial::mouseUp (const juce::MouseEvent& e)
+{
+    if (! dragged)
     {
-        chevron.startNewSubPath (c.x - s * 0.6f, c.y - s * 1.2f);
-        chevron.lineTo (c.x + s * 0.6f, c.y);
-        chevron.lineTo (c.x - s * 0.6f, c.y + s * 1.2f);
+        const int i = indexAt (e.position);
+        if (i >= 0)
+            pick (i);
     }
-    else
-    {
-        chevron.startNewSubPath (c.x + s * 0.6f, c.y - s * 1.2f);
-        chevron.lineTo (c.x - s * 0.6f, c.y);
-        chevron.lineTo (c.x + s * 0.6f, c.y + s * 1.2f);
-    }
-    // Sobre naranjo, siempre negro (regla de la marca)
-    g.setColour ((highlighted || down) ? colour::negro : colour::papel);
-    g.strokePath (chevron, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+}
+
+void SelectorDial::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
+{
+    wheelAccum += (w.isReversed ? -w.deltaY : w.deltaY) + w.deltaX;
+    while (wheelAccum >= 0.12f) { wheelAccum -= 0.12f; pick (index + 1); }
+    while (wheelAccum <= -0.12f) { wheelAccum += 0.12f; pick (index - 1); }
+}
+
+bool SelectorDial::keyPressed (const juce::KeyPress& k)
+{
+    if (k == juce::KeyPress::rightKey || k == juce::KeyPress::upKey)   { pick (index + 1); return true; }
+    if (k == juce::KeyPress::leftKey  || k == juce::KeyPress::downKey) { pick (index - 1); return true; }
+    return false;
 }
 
 //==============================================================================
-PickupCard::PickupCard (juce::RangedAudioParameter& param, const juce::String& labelText, bool blueTone)
-    : parameter (param),
-      attachment (param, [this] (float v) { index = juce::jlimit (0, pickup::numModels() - 1, (int) std::round (v)); repaint(); }),
+SelectorCard::SelectorCard (juce::RangedAudioParameter& param, const juce::String& labelText, bool orangeTone)
+    : attachment (param, [this] (float v)
+                  {
+                      index = juce::jlimit (0, pickup::numModels() - 1, (int) std::round (v));
+                      dial.setIndex (index);
+                      repaint();
+                  }),
       label (labelText),
-      blue (blueTone)
+      dial ([this] (int i) { setIndex (i); })
 {
     for (size_t i = 0; i < photos.size(); ++i)
     {
         auto img = loadPhoto ((int) i);
-        photos[i] = blue ? toBrandTone (img) : img;
+        photos[i] = orangeTone ? toBrandTone (img) : img;
     }
 
-    prev.onClick = [this] { setIndex ((index + pickup::numModels() - 1) % pickup::numModels()); };
-    next.onClick = [this] { setIndex ((index + 1) % pickup::numModels()); };
-    addAndMakeVisible (prev);
-    addAndMakeVisible (next);
-
-    setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    addAndMakeVisible (dial);
+    dial.setTitle (label);
     setTitle (label);
     attachment.sendInitialUpdate();
 }
 
-void PickupCard::setIndex (int newIndex)
+void SelectorCard::setIndex (int newIndex)
 {
     attachment.setValueAsCompleteGesture ((float) newIndex);
 }
 
-juce::Rectangle<int> PickupCard::nameArea() const
-{
-    auto r = getLocalBounds();
-    r.removeFromTop (juce::roundToInt (getWidth() / 1.6f));
-    return r.reduced (18, 14).withTrimmedRight (80);
-}
+juce::Rectangle<int> SelectorCard::photoArea() const { return { 214, 40, 138, 84 }; }
+juce::Rectangle<int> SelectorCard::textArea() const  { return { 214, 134, 142, getHeight() - 134 - 12 }; }
 
-void PickupCard::paint (juce::Graphics& g)
+void SelectorCard::paint (juce::Graphics& g)
 {
-    auto r = getLocalBounds();
-    const auto photoArea = r.removeFromTop (juce::roundToInt (getWidth() / 1.6f));
+    auto top = getLocalBounds().reduced (14, 0).removeFromTop (24).withY (12);
+    drawMonoLabel (g, label, top, colour::humo, juce::Justification::centredLeft, true, true);
+    drawMonoLabel (g, juce::String (index + 1).paddedLeft ('0', 2) + " / " + juce::String (pickup::numModels()), top,
+                   colour::humo, juce::Justification::centredRight);
 
-    g.setColour (colour::negro);
-    g.fillRect (getLocalBounds());
+    const bool hover = isMouseOver (false) && clickArea().contains (getMouseXYRelative());
 
     // Foto de la capsula
-    const auto& photo = photos[(size_t) kPhotoForModel[(size_t) index]];
-    g.drawImage (photo, photoArea.toFloat(), juce::RectanglePlacement::fillDestination);
+    const auto pa = photoArea();
+    g.drawImage (photos[(size_t) kPhotoForModel[(size_t) index]], pa.toFloat(), juce::RectanglePlacement::fillDestination);
+    g.setColour (hover ? colour::naranjo : colour::linea);
+    g.drawRect (pa, 1);
 
-    // Etiqueta sobre la foto
-    auto tag = photoArea.reduced (14).removeFromTop (22);
-    const juce::String tagText = label;
-    const int tagWidth = juce::roundToInt (juce::GlyphArrangement::getStringWidth (Fonts::monoFont (11.0f, true), tagText)) + 18;
-    auto tagBox = tag.removeFromLeft (tagWidth);
-    g.setColour (colour::negro.withAlpha (0.86f));
-    g.fillRect (tagBox);
-    g.setColour (colour::papel);
-    g.setFont (Fonts::monoFont (11.0f, true));
-    g.drawText (tagText, tagBox, juce::Justification::centred, false);
-
-    // Numero del modelo, en mono
-    auto numBox = photoArea.reduced (14).removeFromTop (22).removeFromRight (54);
-    g.setColour (colour::negro.withAlpha (0.86f));
-    g.fillRect (numBox);
-    g.setColour (colour::papel);
-    g.drawText (juce::String (index + 1).paddedLeft ('0', 2) + " / " + juce::String (pickup::numModels()),
-                numBox, juce::Justification::centred, false);
-
-    // Texto
-    auto text = nameArea();
-    const bool hover = isMouseOver (true) && nameArea().contains (getMouseXYRelative());
-    g.setColour (colour::papel);
-    g.setFont (Fonts::bodyFont (19.0f, true));
-    auto nameLine = text.removeFromTop (28);
-    g.drawText (pickup::models()[(size_t) index].name, nameLine, juce::Justification::centredLeft, true);
-
+    // Grupo, nombre y descripcion
+    auto t = textArea().toFloat();
+    drawMonoLabel (g, groupFor (index), t.removeFromTop (14.0f).toNearestInt(), colour::humo, juce::Justification::centredLeft, true, false, 10.0f);
+    t.removeFromTop (4.0f);
+    const float nameH = drawWrapped (g, pickup::models()[(size_t) index].name, Fonts::bodyFont (15.0f, true), colour::papel, t);
     if (hover)
     {
-        const float w = juce::jmin ((float) nameLine.getWidth(),
-                                    juce::GlyphArrangement::getStringWidth (Fonts::bodyFont (19.0f, true), pickup::models()[(size_t) index].name));
-        g.setGradientFill (brandGradient (nameLine.toFloat()));
-        g.fillRect ((float) nameLine.getX(), (float) nameLine.getBottom() - 1.0f, w, 1.5f);
+        g.setColour (colour::naranjo);
+        g.fillRect (t.getX(), t.getY() + nameH + 1.0f, 28.0f, 1.5f);
     }
+    t.removeFromTop (nameH + 6.0f);
+    drawWrapped (g, u8 (kDescriptions[(size_t) index]), Fonts::bodyFont (12.0f), colour::humo, t);
 
-    g.setColour (colour::humo);
-    g.setFont (Fonts::bodyFont (13.5f));
-    g.drawText (u8 (kDescriptions[(size_t) index]), text.removeFromTop (22), juce::Justification::centredLeft, true);
-
-    // Borde fino
     g.setColour (colour::linea);
     g.drawRect (getLocalBounds(), 1);
-    g.drawHorizontalLine (photoArea.getBottom(), 0.0f, (float) getWidth());
 }
 
-void PickupCard::resized()
+void SelectorCard::resized()
 {
-    auto r = getLocalBounds();
-    r.removeFromTop (juce::roundToInt (getWidth() / 1.6f));
-    auto buttons = r.reduced (16).removeFromRight (72).withSizeKeepingCentre (72, 32);
-    prev.setBounds (buttons.removeFromLeft (32));
-    next.setBounds (buttons.removeFromRight (32));
+    dial.setBounds (2, 34, 216, 216);
 }
 
-void PickupCard::mouseUp (const juce::MouseEvent& e)
+void SelectorCard::mouseUp (const juce::MouseEvent& e)
 {
-    if (e.mouseWasClicked())
+    if (e.mouseWasClicked() && clickArea().contains (e.getPosition()))
         showMenu();
 }
 
-void PickupCard::showMenu()
+void SelectorCard::showMenu()
 {
     juce::PopupMenu menu;
     menu.setLookAndFeel (&getLookAndFeel());
@@ -241,13 +289,13 @@ void PickupCard::showMenu()
     {
         menu.addSectionHeader (section);
         for (int i = from; i <= to; ++i)
-            menu.addItem (i + 1, pickup::models()[(size_t) i].name, true, i == index);
+            menu.addItem (i + 1, juce::String (i + 1).paddedLeft ('0', 2) + "   " + pickup::models()[(size_t) i].name, true, i == index);
     };
     addRange ("Single coil", 0, 3);
     addRange ("Humbucker", 4, 6);
     addRange ("Humbucker en split", 7, 9);
 
-    juce::Component::SafePointer<PickupCard> safe (this);
+    juce::Component::SafePointer<SelectorCard> safe (this);
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMinimumWidth (getWidth()),
                         [safe] (int result)
                         {
@@ -302,15 +350,21 @@ float CurveView::responseDb (double f) const
 
 void CurveView::paint (juce::Graphics& g)
 {
+    // Pantalla un poco mas oscura que el fondo, como un visor
+    g.setColour (juce::Colour (0xff0d0c0c));
+    g.fillRect (getLocalBounds());
+    g.setColour (colour::linea);
+    g.drawRect (getLocalBounds(), 1);
+
     auto r = getLocalBounds().toFloat();
-    auto header = r.removeFromTop (30.0f);
-    auto plot = r.reduced (14.0f, 6.0f).withTrimmedBottom (18.0f).withTrimmedLeft (22.0f);
+    const auto header = juce::Rectangle<float> (14.0f, 12.0f, r.getWidth() - 28.0f, 16.0f);
+    const auto plot = juce::Rectangle<float> (40.0f, 42.0f, r.getWidth() - 54.0f, r.getHeight() - 42.0f - 32.0f);
 
     constexpr float range = 15.0f; // +/- dB
     auto xFor = [&] (double f) { return plot.getX() + plot.getWidth() * (float) (std::log10 (f / 20.0) / 3.0); };
     auto yFor = [&] (float db) { return plot.getCentreY() - plot.getHeight() * 0.5f * juce::jlimit (-1.0f, 1.0f, db / range); };
 
-    // Rejilla de linea fina
+    // Rejilla de linea fina con sus valores
     g.setFont (Fonts::monoFont (10.0f));
     for (double f : { 100.0, 1000.0, 10000.0 })
     {
@@ -319,15 +373,15 @@ void CurveView::paint (juce::Graphics& g)
         g.drawVerticalLine (juce::roundToInt (x), plot.getY(), plot.getBottom());
         g.setColour (colour::humo);
         g.drawText (f >= 1000.0 ? juce::String ((int) (f / 1000.0)) + "K" : juce::String ((int) f),
-                    juce::Rectangle<float> (x - 20.0f, plot.getBottom() + 2.0f, 40.0f, 14.0f), juce::Justification::centred, false);
+                    juce::Rectangle<float> (x - 20.0f, plot.getBottom() + 6.0f, 40.0f, 14.0f), juce::Justification::centred, false);
     }
     for (float db : { -12.0f, 0.0f, 12.0f })
     {
         const float y = yFor (db);
-        g.setColour (db == 0.0f ? colour::papel.withAlpha (0.28f) : colour::linea);
+        g.setColour (colour::linea);
         g.drawHorizontalLine (juce::roundToInt (y), plot.getX(), plot.getRight());
         g.setColour (colour::humo);
-        g.drawText ((db > 0 ? "+" : "") + juce::String ((int) db), juce::Rectangle<float> (plot.getX() - 30.0f, y - 7.0f, 26.0f, 14.0f),
+        g.drawText ((db > 0 ? "+" : "") + juce::String ((int) db), juce::Rectangle<float> (plot.getX() - 34.0f, y - 7.0f, 28.0f, 14.0f),
                     juce::Justification::centredRight, false);
     }
 
@@ -350,19 +404,30 @@ void CurveView::paint (juce::Graphics& g)
     fillPath.lineTo (plot.getRight(), yFor (0.0f));
     fillPath.closeSubPath();
 
-    g.setColour (colour::naranjo.withAlpha (0.24f));
+    g.setColour (colour::naranjo.withAlpha (0.22f));
     g.fillPath (fillPath);
-    g.setGradientFill (brandGradient (plot));
+    g.setColour (colour::naranjo);
     g.strokePath (curvePath, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
+    // Marca en el punto de mayor cambio
+    const bool hasPeak = std::abs (peakDb) >= 0.1f;
+    if (hasPeak)
+    {
+        const juce::Point<float> p (xFor (peakF), yFor (peakDb));
+        g.setColour (colour::papel.withAlpha (0.5f));
+        g.drawEllipse (juce::Rectangle<float> (22.0f, 22.0f).withCentre (p), 1.0f);
+        g.setColour (colour::papel);
+        g.fillEllipse (juce::Rectangle<float> (10.0f, 10.0f).withCentre (p));
+    }
+
     // Encabezado: titulo y el cambio mas grande
-    auto h = header.reduced (14.0f, 0.0f);
-    drawMonoLabel (g, "Respuesta", h.toNearestInt());
+    drawMonoLabel (g, "Respuesta", header.toNearestInt());
     juce::String peakText = "Sin cambios";
-    if (std::abs (peakDb) >= 0.1f)
-        peakText = (peakDb > 0 ? "+" : "") + juce::String (peakDb, 1) + " dB  @  "
+    if (hasPeak)
+        peakText = (peakDb > 0 ? "+" : "") + juce::String (peakDb, 1) + " dB  " + u8 ("·") + "  "
                    + (peakF >= 1000.0 ? juce::String (peakF / 1000.0, 1) + " kHz" : juce::String ((int) peakF) + " Hz");
-    drawMonoLabel (g, peakText, h.toNearestInt(), colour::papel, juce::Justification::centredRight, false);
+    drawMonoLabel (g, peakText, header.toNearestInt(), hasPeak ? colour::naranjo : colour::humo,
+                   juce::Justification::centredRight, false, true);
 }
 
 //==============================================================================
@@ -395,8 +460,8 @@ void Knob::resized()
 //==============================================================================
 PickupSwapEditor::PickupSwapEditor (PickupSwapProcessor& p)
     : AudioProcessorEditor (p),
-      fromCard (*p.apvts.getParameter ("desde"), quadro::u8 ("DESDE · TU GUITARRA"), false),
-      toCard (*p.apvts.getParameter ("hacia"), quadro::u8 ("HACIA · LO QUE QUIERES OÍR"), true),
+      fromCard (*p.apvts.getParameter ("desde"), "DESDE", false),
+      toCard (*p.apvts.getParameter ("hacia"), "HACIA", true),
       curve (p.apvts),
       mixKnob (p.apvts, "mezcla", "Mezcla", " %"),
       brightnessKnob (p.apvts, "brillo", "Brillo", " dB"),
@@ -404,6 +469,8 @@ PickupSwapEditor::PickupSwapEditor (PickupSwapProcessor& p)
 {
     setLookAndFeel (&lnf);
     isotipo = juce::Drawable::createFromImageData (BinaryData::quadroisotipo_svg, BinaryData::quadroisotipo_svgSize);
+    if (isotipo != nullptr)
+        isotipo->replaceColour (quadro::colour::naranjo, quadro::colour::negro); // sobre naranjo, siempre negro
 
     addAndMakeVisible (fromCard);
     addAndMakeVisible (toCard);
@@ -425,81 +492,66 @@ void PickupSwapEditor::paint (juce::Graphics& g)
     using namespace quadro;
     g.fillAll (colour::negro);
 
-    // Encabezado: isotipo, nombre del producto y datos en mono
-    auto h = headerArea;
+    // Franja naranja de arriba, con todo en negro
+    g.setColour (colour::naranjo);
+    g.fillRect (bandArea);
+    auto h = bandArea.reduced (24, 0);
     if (isotipo != nullptr)
         isotipo->drawWithin (g, h.removeFromLeft (30).withSizeKeepingCentre (30, 30).toFloat(), juce::RectanglePlacement::centred, 1.0f);
     h.removeFromLeft (14);
-    g.setColour (colour::papel);
+    g.setColour (colour::negro);
     g.setFont (Fonts::titleFont (22.0f));
     const juce::String title = "PICKUP SWAP";
     const int titleW = juce::roundToInt (juce::GlyphArrangement::getStringWidth (Fonts::titleFont (22.0f), title)) + 4;
     g.drawText (title, h.removeFromLeft (titleW), juce::Justification::centredLeft, false);
     h.removeFromLeft (16);
-    g.setColour (colour::linea);
+    g.setColour (colour::negro.withAlpha (0.35f));
     g.fillRect (h.removeFromLeft (1).withSizeKeepingCentre (1, 22));
     h.removeFromLeft (16);
-    drawMonoLabel (g, u8 ("Quadro · Laboratorio creativo digital"), h.removeFromLeft (320));
-    drawMonoLabel (g, u8 ("v" JucePlugin_VersionString "  ·  SIN LATENCIA"), h, colour::humo, juce::Justification::centredRight, false);
+    drawMonoLabel (g, u8 ("SELECTOR DE CÁPSULA"), h.removeFromLeft (220), colour::negro, juce::Justification::centredLeft, false, true);
+    drawMonoLabel (g, u8 ("v" JucePlugin_VersionString " · QUADRO · 33°26′S 70°39′O"), h, colour::negro,
+                   juce::Justification::centredRight, false, true);
 
-    g.setColour (colour::linea);
-    g.drawHorizontalLine (headerArea.getBottom() + 12, (float) headerArea.getX(), (float) headerArea.getRight());
+    // Tornillos en las esquinas, como en un panel de equipo
+    g.setColour (colour::papel.withAlpha (0.28f));
+    for (auto p : { juce::Point<float> (12.0f, 95.0f), juce::Point<float> ((float) getWidth() - 12.0f, 95.0f),
+                    juce::Point<float> (12.0f, (float) getHeight() - 13.0f), juce::Point<float> ((float) getWidth() - 12.0f, (float) getHeight() - 13.0f) })
+        g.drawEllipse (juce::Rectangle<float> (10.0f, 10.0f).withCentre (p), 1.0f);
 
-    // Flecha entre las tarjetas: circulo con el degradado de marca
-    const auto c = juce::Rectangle<int> (fromCard.getRight(), fromCard.getY(), toCard.getX() - fromCard.getRight(), fromCard.getWidth() / 1.6)
-                       .getCentre().toFloat();
-    const auto circle = juce::Rectangle<float> (46.0f, 46.0f).withCentre (c);
-    g.setColour (colour::linea);
-    g.drawHorizontalLine (juce::roundToInt (c.y), (float) fromCard.getRight(), (float) toCard.getX());
-    g.setGradientFill (brandGradient (circle));
+    // Flecha entre las dos tarjetas
+    const auto c = juce::Point<float> ((float) (fromCard.getRight() + toCard.getX()) * 0.5f, (float) fromCard.getBounds().getCentreY());
+    const auto circle = juce::Rectangle<float> (38.0f, 38.0f).withCentre (c);
+    g.setColour (colour::naranjo);
     g.fillEllipse (circle);
     juce::Path arrow;
-    arrow.startNewSubPath (c.x - 9.0f, c.y);
-    arrow.lineTo (c.x + 9.0f, c.y);
-    arrow.startNewSubPath (c.x + 3.0f, c.y - 6.0f);
-    arrow.lineTo (c.x + 9.0f, c.y);
-    arrow.lineTo (c.x + 3.0f, c.y + 6.0f);
+    arrow.startNewSubPath (c.x - 7.0f, c.y);
+    arrow.lineTo (c.x + 7.0f, c.y);
+    arrow.startNewSubPath (c.x + 2.0f, c.y - 5.0f);
+    arrow.lineTo (c.x + 7.0f, c.y);
+    arrow.lineTo (c.x + 2.0f, c.y + 5.0f);
     g.setColour (colour::negro);
-    g.strokePath (arrow, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.strokePath (arrow, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-    // Paneles de abajo
-    drawPanel (g, curvePanel);
-    drawPanel (g, knobsPanel);
-    drawMonoLabel (g, "Ajustes", knobsPanel.reduced (14, 0).removeFromTop (30));
-
-    // Pie
-    drawMonoLabel (g, u8 ("Quadro — Pickup Swap"), footerArea);
-    drawMonoLabel (g, juce::CharPointer_UTF8 ("33\xc2\xb0" "26\xe2\x80\xb2S 70\xc2\xb0" "39\xe2\x80\xb2O"), footerArea, colour::humo,
-                   juce::Justification::centredRight);
+    // Panel de perillas
+    g.setColour (colour::linea);
+    g.drawRect (knobsPanel, 1);
 }
 
 void PickupSwapEditor::resized()
 {
-    auto r = getLocalBounds().reduced (24, 0);
-    r.removeFromTop (20);
-    headerArea = r.removeFromTop (36);
-    r.removeFromTop (30);
+    bandArea = getLocalBounds().removeFromTop (80);
 
-    cardsArea = r.removeFromTop (296);
-    auto cards = cardsArea;
-    const int cardW = 352;
-    fromCard.setBounds (cards.removeFromLeft (cardW));
-    toCard.setBounds (cards.removeFromRight (cardW));
+    fromCard.setBounds (24, 112, 366, 258);
+    toCard.setBounds (430, 112, 366, 258);
 
-    r.removeFromTop (20);
-    footerArea = r.removeFromBottom (40);
-    bottomArea = r;
-    auto b = bottomArea;
-    knobsPanel = b.removeFromRight (300);
-    b.removeFromRight (20);
-    curvePanel = b;
+    curvePanel = { 24, 390, 440, 200 };
+    knobsPanel = { 484, 390, 312, 200 };
     curve.setBounds (curvePanel);
 
-    auto k = knobsPanel.reduced (6, 0);
-    k.removeFromTop (30);
-    k.removeFromBottom (6);
-    const int kw = k.getWidth() / 3;
+    auto k = knobsPanel.reduced (0, 24);
+    const int kw = (k.getWidth() - 12) / 3;
+    k.removeFromLeft (6);
     mixKnob.setBounds (k.removeFromLeft (kw));
     brightnessKnob.setBounds (k.removeFromLeft (kw));
-    outputKnob.setBounds (k);
+    outputKnob.setBounds (k.removeFromLeft (kw));
 }

@@ -20,10 +20,11 @@ Si **Desde** y **Hacia** son iguales, el plugin no cambia nada.
 
 Diseñada con el sistema de marca de Quadro (brandboard naranjo): fondo negro, acentos en naranjo, textos en papel y humo, líneas finas y las tipografías Archivo Expanded, Stack Sans Text e IBM Plex Mono.
 
-- **Tarjeta Desde** (foto en blanco y negro) y **tarjeta Hacia** (foto en el naranjo de la marca). Cambia de modelo con las flechas o haciendo clic en la tarjeta para ver la lista completa.
-- Las cápsulas en split se muestran con una foto en semitono; las completas, con grano.
-- **Respuesta:** gráfico que muestra qué frecuencias sube o baja la combinación elegida, con el cambio más grande arriba a la derecha.
-- **Ajustes:** perillas de Mezcla, Brillo y Salida. Doble clic en una perilla la vuelve a su valor inicial.
+- Estilo **panel de equipo**: franja naranja arriba (textos en negro, como pide la marca) y tornillos en las esquinas.
+- **Selector Desde** y **selector Hacia**: perillas de 10 posiciones (01 a 10). Se giran arrastrando, con la rueda del mouse, con las flechas del teclado, o haciendo clic en el número que quieras. Clic en la foto o el nombre abre la lista completa.
+- Cada selector muestra la foto de la cápsula (Desde en blanco y negro, Hacia en el naranjo de la marca), su grupo, el nombre y una descripción corta. Las cápsulas en split se muestran con una foto en semitono; las completas, con grano.
+- **Respuesta:** pantalla que muestra qué frecuencias sube o baja la combinación elegida, con valores de referencia y el cambio más grande marcado.
+- **Perillas** de Mezcla, Brillo y Salida. Doble clic en una perilla la vuelve a su valor inicial.
 
 Para revisar el diseño sin abrir un DAW: `cmake -B build -DQUADRO_UI_SNAPSHOT=ON` arma `QuadroUISnapshot`, que guarda una imagen PNG de la interfaz.
 
