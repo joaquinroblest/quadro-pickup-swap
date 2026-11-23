@@ -36,16 +36,16 @@ juce::Image loadPhoto (int i)
     }
 }
 
-// Pasa una foto en blanco y negro a los azules de la marca (sombras grafito, medios indigo y celeste,
-// luces niebla). La marca pide fotos en blanco y negro con un solo plano en azul: se usa en "Hacia".
-juce::Image toBrandBlue (const juce::Image& src)
+// Pasa una foto en blanco y negro al naranjo de la marca (sombras negro, medios naranjo profundo
+// y naranjo, luces papel). La marca pide fotos en blanco y negro con un solo plano en naranjo: se usa en "Hacia".
+juce::Image toBrandTone (const juce::Image& src)
 {
     juce::Image out (juce::Image::RGB, src.getWidth(), src.getHeight(), false);
     const juce::Image::BitmapData in (src, juce::Image::BitmapData::readOnly);
     juce::Image::BitmapData dst (out, juce::Image::BitmapData::writeOnly);
 
     struct Stop { float pos; juce::Colour c; };
-    const Stop stops[] = { { 0.0f, colour::grafito }, { 0.45f, colour::indigo }, { 0.75f, colour::celeste }, { 1.0f, colour::niebla } };
+    const Stop stops[] = { { 0.0f, colour::negro }, { 0.45f, colour::naranjoProfundo }, { 0.75f, colour::naranjo }, { 1.0f, colour::papel } };
 
     std::array<juce::Colour, 256> lut;
     for (int v = 0; v < 256; ++v)
@@ -76,7 +76,7 @@ void drawPanel (juce::Graphics& g, juce::Rectangle<int> r)
 }
 
 void drawMonoLabel (juce::Graphics& g, const juce::String& text, juce::Rectangle<int> r,
-                    juce::Colour c = colour::gris, juce::Justification j = juce::Justification::centredLeft, bool upper = true)
+                    juce::Colour c = colour::humo, juce::Justification j = juce::Justification::centredLeft, bool upper = true)
 {
     g.setColour (c);
     g.setFont (Fonts::monoFont (11.0f));
@@ -101,7 +101,7 @@ void ArrowButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
     }
     else
     {
-        g.setColour (colour::niebla.withAlpha (0.28f));
+        g.setColour (colour::papel.withAlpha (0.28f));
         g.drawEllipse (r, 1.0f);
     }
 
@@ -120,7 +120,8 @@ void ArrowButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
         chevron.lineTo (c.x - s * 0.6f, c.y);
         chevron.lineTo (c.x + s * 0.6f, c.y + s * 1.2f);
     }
-    g.setColour (colour::niebla);
+    // Sobre naranjo, siempre negro (regla de la marca)
+    g.setColour ((highlighted || down) ? colour::negro : colour::papel);
     g.strokePath (chevron, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 }
 
@@ -134,7 +135,7 @@ PickupCard::PickupCard (juce::RangedAudioParameter& param, const juce::String& l
     for (size_t i = 0; i < photos.size(); ++i)
     {
         auto img = loadPhoto ((int) i);
-        photos[i] = blue ? toBrandBlue (img) : img;
+        photos[i] = blue ? toBrandTone (img) : img;
     }
 
     prev.onClick = [this] { setIndex ((index + pickup::numModels() - 1) % pickup::numModels()); };
@@ -164,7 +165,7 @@ void PickupCard::paint (juce::Graphics& g)
     auto r = getLocalBounds();
     const auto photoArea = r.removeFromTop (juce::roundToInt (getWidth() / 1.6f));
 
-    g.setColour (colour::grafito);
+    g.setColour (colour::negro);
     g.fillRect (getLocalBounds());
 
     // Foto de la capsula
@@ -176,24 +177,24 @@ void PickupCard::paint (juce::Graphics& g)
     const juce::String tagText = label;
     const int tagWidth = juce::roundToInt (juce::GlyphArrangement::getStringWidth (Fonts::monoFont (11.0f, true), tagText)) + 18;
     auto tagBox = tag.removeFromLeft (tagWidth);
-    g.setColour (colour::grafito.withAlpha (0.86f));
+    g.setColour (colour::negro.withAlpha (0.86f));
     g.fillRect (tagBox);
-    g.setColour (colour::niebla);
+    g.setColour (colour::papel);
     g.setFont (Fonts::monoFont (11.0f, true));
     g.drawText (tagText, tagBox, juce::Justification::centred, false);
 
     // Numero del modelo, en mono
     auto numBox = photoArea.reduced (14).removeFromTop (22).removeFromRight (54);
-    g.setColour (colour::grafito.withAlpha (0.86f));
+    g.setColour (colour::negro.withAlpha (0.86f));
     g.fillRect (numBox);
-    g.setColour (colour::niebla);
+    g.setColour (colour::papel);
     g.drawText (juce::String (index + 1).paddedLeft ('0', 2) + " / " + juce::String (pickup::numModels()),
                 numBox, juce::Justification::centred, false);
 
     // Texto
     auto text = nameArea();
     const bool hover = isMouseOver (true) && nameArea().contains (getMouseXYRelative());
-    g.setColour (colour::niebla);
+    g.setColour (colour::papel);
     g.setFont (Fonts::bodyFont (19.0f, true));
     auto nameLine = text.removeFromTop (28);
     g.drawText (pickup::models()[(size_t) index].name, nameLine, juce::Justification::centredLeft, true);
@@ -206,7 +207,7 @@ void PickupCard::paint (juce::Graphics& g)
         g.fillRect ((float) nameLine.getX(), (float) nameLine.getBottom() - 1.0f, w, 1.5f);
     }
 
-    g.setColour (colour::gris);
+    g.setColour (colour::humo);
     g.setFont (Fonts::bodyFont (13.5f));
     g.drawText (u8 (kDescriptions[(size_t) index]), text.removeFromTop (22), juce::Justification::centredLeft, true);
 
@@ -316,16 +317,16 @@ void CurveView::paint (juce::Graphics& g)
         const float x = xFor (f);
         g.setColour (colour::linea);
         g.drawVerticalLine (juce::roundToInt (x), plot.getY(), plot.getBottom());
-        g.setColour (colour::gris);
+        g.setColour (colour::humo);
         g.drawText (f >= 1000.0 ? juce::String ((int) (f / 1000.0)) + "K" : juce::String ((int) f),
                     juce::Rectangle<float> (x - 20.0f, plot.getBottom() + 2.0f, 40.0f, 14.0f), juce::Justification::centred, false);
     }
     for (float db : { -12.0f, 0.0f, 12.0f })
     {
         const float y = yFor (db);
-        g.setColour (db == 0.0f ? colour::niebla.withAlpha (0.28f) : colour::linea);
+        g.setColour (db == 0.0f ? colour::papel.withAlpha (0.28f) : colour::linea);
         g.drawHorizontalLine (juce::roundToInt (y), plot.getX(), plot.getRight());
-        g.setColour (colour::gris);
+        g.setColour (colour::humo);
         g.drawText ((db > 0 ? "+" : "") + juce::String ((int) db), juce::Rectangle<float> (plot.getX() - 30.0f, y - 7.0f, 26.0f, 14.0f),
                     juce::Justification::centredRight, false);
     }
@@ -349,8 +350,7 @@ void CurveView::paint (juce::Graphics& g)
     fillPath.lineTo (plot.getRight(), yFor (0.0f));
     fillPath.closeSubPath();
 
-    juce::ColourGradient fillGrad (colour::celeste.withAlpha (0.28f), plot.getBottomLeft(), colour::indigo.withAlpha (0.28f), plot.getTopRight(), false);
-    g.setGradientFill (fillGrad);
+    g.setColour (colour::naranjo.withAlpha (0.24f));
     g.fillPath (fillPath);
     g.setGradientFill (brandGradient (plot));
     g.strokePath (curvePath, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
@@ -362,7 +362,7 @@ void CurveView::paint (juce::Graphics& g)
     if (std::abs (peakDb) >= 0.1f)
         peakText = (peakDb > 0 ? "+" : "") + juce::String (peakDb, 1) + " dB  @  "
                    + (peakF >= 1000.0 ? juce::String (peakF / 1000.0, 1) + " kHz" : juce::String ((int) peakF) + " Hz");
-    drawMonoLabel (g, peakText, h.toNearestInt(), colour::niebla, juce::Justification::centredRight, false);
+    drawMonoLabel (g, peakText, h.toNearestInt(), colour::papel, juce::Justification::centredRight, false);
 }
 
 //==============================================================================
@@ -381,7 +381,7 @@ Knob::Knob (juce::AudioProcessorValueTreeState& state, const juce::String& param
 
 void Knob::paint (juce::Graphics& g)
 {
-    drawMonoLabel (g, label, getLocalBounds().removeFromBottom (20), colour::gris, juce::Justification::centred);
+    drawMonoLabel (g, label, getLocalBounds().removeFromBottom (20), colour::humo, juce::Justification::centred);
 }
 
 void Knob::resized()
@@ -423,14 +423,14 @@ PickupSwapEditor::~PickupSwapEditor()
 void PickupSwapEditor::paint (juce::Graphics& g)
 {
     using namespace quadro;
-    g.fillAll (colour::grafito);
+    g.fillAll (colour::negro);
 
     // Encabezado: isotipo, nombre del producto y datos en mono
     auto h = headerArea;
     if (isotipo != nullptr)
         isotipo->drawWithin (g, h.removeFromLeft (30).withSizeKeepingCentre (30, 30).toFloat(), juce::RectanglePlacement::centred, 1.0f);
     h.removeFromLeft (14);
-    g.setColour (colour::niebla);
+    g.setColour (colour::papel);
     g.setFont (Fonts::titleFont (22.0f));
     const juce::String title = "PICKUP SWAP";
     const int titleW = juce::roundToInt (juce::GlyphArrangement::getStringWidth (Fonts::titleFont (22.0f), title)) + 4;
@@ -440,7 +440,7 @@ void PickupSwapEditor::paint (juce::Graphics& g)
     g.fillRect (h.removeFromLeft (1).withSizeKeepingCentre (1, 22));
     h.removeFromLeft (16);
     drawMonoLabel (g, u8 ("Quadro · Laboratorio creativo digital"), h.removeFromLeft (320));
-    drawMonoLabel (g, u8 ("v" JucePlugin_VersionString "  ·  SIN LATENCIA"), h, colour::gris, juce::Justification::centredRight, false);
+    drawMonoLabel (g, u8 ("v" JucePlugin_VersionString "  ·  SIN LATENCIA"), h, colour::humo, juce::Justification::centredRight, false);
 
     g.setColour (colour::linea);
     g.drawHorizontalLine (headerArea.getBottom() + 12, (float) headerArea.getX(), (float) headerArea.getRight());
@@ -459,7 +459,7 @@ void PickupSwapEditor::paint (juce::Graphics& g)
     arrow.startNewSubPath (c.x + 3.0f, c.y - 6.0f);
     arrow.lineTo (c.x + 9.0f, c.y);
     arrow.lineTo (c.x + 3.0f, c.y + 6.0f);
-    g.setColour (colour::niebla);
+    g.setColour (colour::negro);
     g.strokePath (arrow, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
     // Paneles de abajo
@@ -469,7 +469,7 @@ void PickupSwapEditor::paint (juce::Graphics& g)
 
     // Pie
     drawMonoLabel (g, u8 ("Quadro — Pickup Swap"), footerArea);
-    drawMonoLabel (g, juce::CharPointer_UTF8 ("33\xc2\xb0" "26\xe2\x80\xb2S 70\xc2\xb0" "39\xe2\x80\xb2O"), footerArea, colour::gris,
+    drawMonoLabel (g, juce::CharPointer_UTF8 ("33\xc2\xb0" "26\xe2\x80\xb2S 70\xc2\xb0" "39\xe2\x80\xb2O"), footerArea, colour::humo,
                    juce::Justification::centredRight);
 }
 

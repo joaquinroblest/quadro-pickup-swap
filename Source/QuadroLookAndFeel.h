@@ -1,7 +1,7 @@
 #pragma once
 
-// Estilo visual de Quadro (brandboard azul): grafito de fondo, niebla para el texto,
-// degradado de celeste a indigo para los acentos, lineas finas y tipografias de marca.
+// Estilo visual de Quadro (brandboard naranjo): negro de fondo, papel para el texto,
+// naranjo para simbolos, graficos y acentos, humo para textos secundarios y lineas finas.
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -14,19 +14,19 @@ inline juce::String u8 (const char* text) { return juce::String::fromUTF8 (text)
 
 namespace colour
 {
-    const juce::Colour grafito { 0xff16171a };
-    const juce::Colour acero   { 0xff2a2c31 };
-    const juce::Colour gris    { 0xff8c9099 };
-    const juce::Colour niebla  { 0xfff2f3f5 };
-    const juce::Colour celeste { 0xff3797f6 };
-    const juce::Colour indigo  { 0xff333bf6 };
-    const juce::Colour linea   = niebla.withAlpha (0.14f); // bordes y lineas finas
+    const juce::Colour negro           { 0xff131211 }; // fondo principal
+    const juce::Colour naranjo         { 0xfff2622e }; // simbolos, graficos y acentos
+    const juce::Colour naranjoProfundo { 0xffd24b22 }; // sombras del naranjo
+    const juce::Colour papel           { 0xfff6f2eb }; // texto sobre negro
+    const juce::Colour humo            { 0xff8e8780 }; // textos secundarios
+    const juce::Colour panel           { 0xff1f1d1b }; // menus desplegables (negro levantado)
+    const juce::Colour linea           = papel.withAlpha (0.14f); // bordes y lineas finas
 }
 
-// Degradado de marca a 45 grados (celeste abajo a la izquierda, indigo arriba a la derecha).
+// Relleno de acento: naranjo plano (la version naranjo de la marca no usa degradados).
 inline juce::ColourGradient brandGradient (juce::Rectangle<float> r)
 {
-    return juce::ColourGradient (colour::celeste, r.getBottomLeft(), colour::indigo, r.getTopRight(), false);
+    return juce::ColourGradient (colour::naranjo, r.getBottomLeft(), colour::naranjo, r.getTopRight(), false);
 }
 
 struct Fonts
@@ -66,20 +66,20 @@ class LookAndFeel : public juce::LookAndFeel_V4
 public:
     LookAndFeel()
     {
-        setColour (juce::ResizableWindow::backgroundColourId, colour::grafito);
-        setColour (juce::PopupMenu::backgroundColourId, colour::acero);
-        setColour (juce::PopupMenu::textColourId, colour::niebla);
-        setColour (juce::PopupMenu::highlightedBackgroundColourId, colour::celeste.withAlpha (0.22f));
-        setColour (juce::PopupMenu::highlightedTextColourId, colour::niebla);
-        setColour (juce::TooltipWindow::backgroundColourId, colour::acero);
-        setColour (juce::TooltipWindow::textColourId, colour::niebla);
+        setColour (juce::ResizableWindow::backgroundColourId, colour::negro);
+        setColour (juce::PopupMenu::backgroundColourId, colour::panel);
+        setColour (juce::PopupMenu::textColourId, colour::papel);
+        setColour (juce::PopupMenu::highlightedBackgroundColourId, colour::naranjo.withAlpha (0.22f));
+        setColour (juce::PopupMenu::highlightedTextColourId, colour::papel);
+        setColour (juce::TooltipWindow::backgroundColourId, colour::panel);
+        setColour (juce::TooltipWindow::textColourId, colour::papel);
     }
 
     juce::Font getPopupMenuFont() override { return Fonts::bodyFont (15.0f); }
 
     void drawPopupMenuBackground (juce::Graphics& g, int width, int height) override
     {
-        g.fillAll (colour::acero);
+        g.fillAll (colour::panel);
         g.setColour (colour::linea);
         g.drawRect (0, 0, width, height, 1);
     }
@@ -87,7 +87,7 @@ public:
     void drawPopupMenuSectionHeader (juce::Graphics& g, const juce::Rectangle<int>& area, const juce::String& sectionName) override
     {
         g.setFont (Fonts::monoFont (11.0f, true));
-        g.setColour (colour::gris);
+        g.setColour (colour::humo);
         g.drawText (sectionName.toUpperCase(), area.reduced (14, 0), juce::Justification::bottomLeft, false);
     }
 
@@ -101,7 +101,7 @@ public:
         const float arcRadius = radius - 4.0f;
 
         // Puntos de escala alrededor (el "universo" de la marca: puntos y orbitas de linea fina)
-        g.setColour (colour::gris.withAlpha (0.55f));
+        g.setColour (colour::humo.withAlpha (0.55f));
         for (int i = 0; i <= 10; ++i)
         {
             const float a = startAngle + (endAngle - startAngle) * (float) i / 10.0f;
@@ -128,11 +128,11 @@ public:
 
         // Punto indicador
         const auto dot = centre.getPointOnCircumference (arcRadius, toAngle);
-        g.setColour (colour::niebla);
+        g.setColour (colour::papel);
         g.fillEllipse (dot.x - 4.0f, dot.y - 4.0f, 8.0f, 8.0f);
 
         // Valor al centro
-        g.setColour (colour::niebla);
+        g.setColour (colour::papel);
         g.setFont (Fonts::monoFont (13.0f, true));
         g.drawText (slider.getTextFromValue (slider.getValue()), bounds.withSizeKeepingCentre (bounds.getWidth(), 20.0f),
                     juce::Justification::centred, false);

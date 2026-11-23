@@ -18,9 +18,9 @@ Si **Desde** y **Hacia** son iguales, el plugin no cambia nada.
 
 ## Interfaz
 
-Diseñada con el sistema de marca de Quadro (brandboard azul): fondo grafito, acentos con el degradado de celeste a índigo, líneas finas y las tipografías Archivo Expanded, Stack Sans Text e IBM Plex Mono.
+Diseñada con el sistema de marca de Quadro (brandboard naranjo): fondo negro, acentos en naranjo, textos en papel y humo, líneas finas y las tipografías Archivo Expanded, Stack Sans Text e IBM Plex Mono.
 
-- **Tarjeta Desde** (foto en blanco y negro) y **tarjeta Hacia** (foto en los azules de la marca). Cambia de modelo con las flechas o haciendo clic en la tarjeta para ver la lista completa.
+- **Tarjeta Desde** (foto en blanco y negro) y **tarjeta Hacia** (foto en el naranjo de la marca). Cambia de modelo con las flechas o haciendo clic en la tarjeta para ver la lista completa.
 - Las cápsulas en split se muestran con una foto en semitono; las completas, con grano.
 - **Respuesta:** gráfico que muestra qué frecuencias sube o baja la combinación elegida, con el cambio más grande arriba a la derecha.
 - **Ajustes:** perillas de Mezcla, Brillo y Salida. Doble clic en una perilla la vuelve a su valor inicial.
