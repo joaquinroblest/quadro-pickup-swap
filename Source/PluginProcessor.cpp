@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "PluginEditor.h"
 
 namespace
 {
@@ -182,7 +183,7 @@ void PickupSwapProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
 
 juce::AudioProcessorEditor* PickupSwapProcessor::createEditor()
 {
-    return new juce::GenericAudioProcessorEditor (*this);
+    return new PickupSwapEditor (*this);
 }
 
 void PickupSwapProcessor::getStateInformation (juce::MemoryBlock& destData)

@@ -16,6 +16,17 @@ Solo usa filtros, así que **no agrega retraso**: se puede tocar en vivo.
 
 Si **Desde** y **Hacia** son iguales, el plugin no cambia nada.
 
+## Interfaz
+
+Diseñada con el sistema de marca de Quadro (brandboard azul): fondo grafito, acentos con el degradado de celeste a índigo, líneas finas y las tipografías Archivo Expanded, Stack Sans Text e IBM Plex Mono.
+
+- **Tarjeta Desde** (foto en blanco y negro) y **tarjeta Hacia** (foto en los azules de la marca). Cambia de modelo con las flechas o haciendo clic en la tarjeta para ver la lista completa.
+- Las cápsulas en split se muestran con una foto en semitono; las completas, con grano.
+- **Respuesta:** gráfico que muestra qué frecuencias sube o baja la combinación elegida, con el cambio más grande arriba a la derecha.
+- **Ajustes:** perillas de Mezcla, Brillo y Salida. Doble clic en una perilla la vuelve a su valor inicial.
+
+Para revisar el diseño sin abrir un DAW: `cmake -B build -DQUADRO_UI_SNAPSHOT=ON` arma `QuadroUISnapshot`, que guarda una imagen PNG de la interfaz.
+
 ## Modelos
 
 | Modelo | Carácter |
@@ -59,5 +70,8 @@ Al instalar una versión nueva, hay que **cerrar Logic por completo** (no solo e
 ## Créditos y licencia
 
 - Estructura de plugin: [JUCE](https://juce.com) (AGPL v3).
+- Tipografías: Archivo, Stack Sans Text e IBM Plex Mono, bajo SIL Open Font License 1.1 (ver `Resources/fonts/OFL-licenses.txt`).
+- Fotos de Unsplash (licencia de Unsplash), recortadas y tratadas con Adobe: Seth Reese (Strato), Nestor Mehanikov (humbucker), Al Elmes (P90) y Chris Hardy (Tele).
+- Marca e isotipo: Quadro.
 
 Por eso este proyecto se distribuye bajo **AGPL v3**: el código es abierto.
